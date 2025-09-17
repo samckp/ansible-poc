@@ -1,0 +1,56 @@
+---
+- name: Install JDK 21 and Apache Kafka
+  hosts: localhost
+  become: yes
+  vars:
+    kafka_version: "4.0.0"
+    kafka_scala_version: "2.13"
+    kafka_install_dir: "/opt/kafka"
+    kafka_user: "root"
+    kafka_group: "root"
+    jdk_package: "java-21-openjdk"
+
+  tasks:
+    - name: Install JDK 21
+      yum:
+        name: "{{ jdk_package }}"
+        state: present
+
+    - name: Create kafka user and group
+      user:
+        name: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        create_home: no
+        shell: /bin/false
+        system: yes
+
+    - name: Download Kafka
+      get_url:
+        url: "https://dist.apache.org/repos/dist/dev/kafka/4.0.0-rc4/kafka_{{ kafka_scala_version }}-{{ kafka_version }}.tgz"
+        dest: "/tmp/kafka.tgz"
+        mode: '0644'
+
+    - name: Create Kafka install directory
+      file:
+        path: "{{ kafka_install_dir }}"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+
+    - name: Install tar if not present
+      yum:
+        name: tar
+        state: present
+
+    - name: Extract Kafka
+      unarchive:
+        src: "/tmp/kafka.tgz"
+        dest: "{{ kafka_install_dir }}"
+
+    - name: Set ownership for Kafka directory
+      file:
+        path: "{{ kafka_install_dir }}"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        recurse: yes
