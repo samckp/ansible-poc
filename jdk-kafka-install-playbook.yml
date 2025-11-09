@@ -1,56 +1,98 @@
 ---
-- name: Install JDK 21 and Apache Kafka
+- name: Install OpenJDK 21 and Kafka 4.0.1
   hosts: localhost
   become: yes
   vars:
-    kafka_version: "4.0.0"
-    kafka_scala_version: "2.13"
-    kafka_install_dir: "/opt/kafka"
-    kafka_user: "root"
-    kafka_group: "root"
-    jdk_package: "java-21-openjdk"
+    kafka_version: "4.0.1"
+    scala_version: "2.13"
+    kafka_user: kafka
+    kafka_group: kafka
+    kafka_install_dir: /opt/kafka
+    kafka_data_dir: /var/lib/kafka
+    kafka_log_dir: /var/log/kafka
 
   tasks:
-    - name: Install JDK 21
+
+    - name: Install OpenJDK 21 (RedHat/CentOS)
       yum:
-        name: "{{ jdk_package }}"
+        name: java-21-openjdk-devel
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Verify Java installation
+      command: java -version
+      register: java_version
+      changed_when: false
+
+    - name: Display Java version
+      debug:
+        var: java_version.stderr_lines
+
+    - name: Create Kafka group
+      group:
+        name: "{{ kafka_group }}"
         state: present
 
-    - name: Create kafka user and group
+    - name: Create Kafka user
       user:
         name: "{{ kafka_user }}"
         group: "{{ kafka_group }}"
-        create_home: no
-        shell: /bin/false
-        system: yes
-
-    - name: Download Kafka
-      get_url:
-        url: "https://dist.apache.org/repos/dist/dev/kafka/4.0.0-rc4/kafka_{{ kafka_scala_version }}-{{ kafka_version }}.tgz"
-        dest: "/tmp/kafka.tgz"
-        mode: '0644'
-
-    - name: Create Kafka install directory
-      file:
-        path: "{{ kafka_install_dir }}"
-        state: directory
-        owner: "{{ kafka_user }}"
-        group: "{{ kafka_group }}"
-
-    - name: Install tar if not present
-      yum:
-        name: tar
+        shell: /bin/bash
+        createhome: yes
         state: present
 
-    - name: Extract Kafka
-      unarchive:
-        src: "/tmp/kafka.tgz"
-        dest: "{{ kafka_install_dir }}"
-
-    - name: Set ownership for Kafka directory
+    - name: Create Kafka directories
       file:
-        path: "{{ kafka_install_dir }}"
+        path: "{{ item }}"
         state: directory
         owner: "{{ kafka_user }}"
         group: "{{ kafka_group }}"
-        recurse: yes
+        mode: '0755'
+      loop:
+        - "{{ kafka_install_dir }}"
+        - "{{ kafka_data_dir }}"
+        - "{{ kafka_log_dir }}"
+
+    - name: Download Kafka 4.0.1
+      get_url:
+        url: "https://dlcdn.apache.org/kafka/{{ kafka_version }}/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        dest: "/tmp/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        mode: '0644'
+
+    - name: Extract Kafka archive
+      unarchive:
+        src: "/tmp/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        dest: "{{ kafka_install_dir }}"
+        remote_src: yes
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        extra_opts: [--strip-components=1]
+
+    - name: Configure Kafka server properties
+      lineinfile:
+        path: "{{ kafka_install_dir }}/config/server.properties"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^log.dirs=', line: 'log.dirs={{ kafka_data_dir }}' }
+        - { regexp: '^#?listeners=', line: 'listeners=PLAINTEXT://:9092' }
+
+
+    - name: Clean up downloaded archive
+      file:
+        path: "/tmp/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        state: absent
+
+    - name: Display installation complete message
+      debug:
+        msg: |
+          Kafka 4.0.1 installation completed!
+
+          Kafka is installed at: {{ kafka_install_dir }}
+          Data directory: {{ kafka_data_dir }}
+          Log directory: {{ kafka_log_dir }}
+
+    - name: Install net-tools package
+      ansible.builtin.yum:
+        name: net-tools
+        state: present

@@ -1,0 +1,58 @@
+---
+- name: Download Kafka 4.0.1
+  hosts: localhost
+  become: yes
+  vars:
+    kafka_version: "4.0.1"
+    scala_version: "2.13"
+    kafka_user: kafkatmp
+    kafka_group: kafkatmp
+    kafka_install_dir: /tmp/kafka
+    kafka_data_dir: /tmp/lib/kafka
+    kafka_log_dir: /tmp/log/kafka
+
+  tasks:
+
+    - name: Create group
+      group:
+        name: "{{ kafka_group }}"
+        state: present
+
+
+    - name: Create User
+      user:
+        name: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        shell: /bin/bash
+        createhome: yes
+        state: present
+
+    - name:
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0755'
+
+      loop:
+        - "{{ kafka_install_dir }}"
+        - "{{ kafka_data_dir }}"
+        - "{{ kafka_log_dir }}"
+
+    - name: Check if Kafka archive already exists
+      stat:
+        path: "/tmp/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+      register: kafka_archive
+
+    - name: Download Kafka 4.0.1
+      get_url:
+        url: "https://downloads.apache.org/kafka/{{ kafka_version }}/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        dest: "/tmp/kafka_{{ scala_version }}-{{ kafka_version }}.tgz"
+        mode: '0644'
+      when: not kafka_archive.stat.exists
+
+    - name: Skip download message
+      debug:
+        msg: "Kafka archive already exists, skipping download"
+      when: kafka_archive.stat.exists
