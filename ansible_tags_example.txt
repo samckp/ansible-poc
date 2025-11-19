@@ -1,0 +1,596 @@
+---
+# ============================================================================
+# ANSIBLE TAGS - COMPLETE GUIDE WITH EXAMPLES
+# ============================================================================
+
+# ============================================================================
+# 1. SINGLE TAG ON A TASK
+# ============================================================================
+- name: Web Application Deployment
+  hosts: webservers
+  become: yes
+  
+  tasks:
+    - name: Install Apache web server
+      ansible.builtin.apt:
+        name: apache2
+        state: present
+      tags: install
+    
+    - name: Start Apache service
+      ansible.builtin.service:
+        name: apache2
+        state: started
+      tags: start
+
+# Run with: ansible-playbook playbook.yml --tags install
+# Run with: ansible-playbook playbook.yml --tags start
+
+# ============================================================================
+# 2. MULTIPLE TAGS ON A TASK
+# ============================================================================
+- name: Database Configuration
+  hosts: dbservers
+  become: yes
+  
+  tasks:
+    - name: Install PostgreSQL
+      ansible.builtin.apt:
+        name: postgresql
+        state: present
+      tags:
+        - install
+        - database
+        - setup
+    
+    - name: Configure PostgreSQL
+      ansible.builtin.template:
+        src: postgresql.conf.j2
+        dest: /etc/postgresql/postgresql.conf
+      tags:
+        - config
+        - database
+        - setup
+
+# Run with: ansible-playbook playbook.yml --tags database
+# Run with: ansible-playbook playbook.yml --tags "install,config"
+# Run with: ansible-playbook playbook.yml --tags setup
+
+# ============================================================================
+# 3. TAGS ON PLAYS (applies to all tasks in the play)
+# ============================================================================
+- name: Application Setup
+  hosts: appservers
+  become: yes
+  tags:
+    - application
+    - production
+  
+  tasks:
+    - name: Create app directory
+      ansible.builtin.file:
+        path: /opt/myapp
+        state: directory
+    
+    - name: Copy application files
+      ansible.builtin.copy:
+        src: app.py
+        dest: /opt/myapp/
+
+# Run with: ansible-playbook playbook.yml --tags application
+# This runs ALL tasks in this play
+
+# ============================================================================
+# 4. TAGS ON INCLUDED TASKS
+# ============================================================================
+- name: Complex Deployment
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Include installation tasks
+      ansible.builtin.include_tasks: install_tasks.yml
+      tags:
+        - install
+        - setup
+    
+    - name: Include configuration tasks
+      ansible.builtin.include_tasks: config_tasks.yml
+      tags:
+        - config
+        - setup
+
+# Run with: ansible-playbook playbook.yml --tags setup
+# This includes both install and config tasks
+
+# ============================================================================
+# 5. TAGS ON ROLES
+# ============================================================================
+- name: Complete Infrastructure Setup
+  hosts: webservers
+  become: yes
+  
+  roles:
+    - role: nginx
+      tags:
+        - webserver
+        - nginx
+    
+    - role: mysql
+      tags:
+        - database
+        - mysql
+    
+    - role: php
+      tags:
+        - application
+        - php
+
+# Run with: ansible-playbook playbook.yml --tags webserver
+# Run with: ansible-playbook playbook.yml --tags "webserver,database"
+
+# ============================================================================
+# 6. SPECIAL TAGS (always, never, tagged, untagged, all)
+# ============================================================================
+- name: Application with Special Tags
+  hosts: appservers
+  become: yes
+  
+  tasks:
+    - name: Update package cache (always runs)
+      ansible.builtin.apt:
+        update_cache: yes
+      tags: always
+    
+    - name: Install application
+      ansible.builtin.apt:
+        name: myapp
+        state: present
+      tags: install
+    
+    - name: Debug task (never runs by default)
+      ansible.builtin.debug:
+        msg: "This is debug information"
+      tags: never
+    
+    - name: Cleanup old files (never runs by default)
+      ansible.builtin.file:
+        path: /tmp/old_data
+        state: absent
+      tags: never
+
+# Run with: ansible-playbook playbook.yml --tags install
+#   - Runs: update cache (always) + install task
+# Run with: ansible-playbook playbook.yml --tags never
+#   - Runs: only tasks tagged 'never'
+# Run with: ansible-playbook playbook.yml --skip-tags never
+#   - Runs: everything except 'never' tagged tasks
+
+# ============================================================================
+# 7. SKIP TAGS (opposite of --tags)
+# ============================================================================
+- name: Full Application Stack
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Install dependencies
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - python3
+        - nginx
+        - redis
+      tags: install
+    
+    - name: Configure services
+      ansible.builtin.template:
+        src: "{{ item }}.conf.j2"
+        dest: "/etc/{{ item }}/{{ item }}.conf"
+      loop:
+        - nginx
+        - redis
+      tags: config
+    
+    - name: Start services
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - nginx
+        - redis
+      tags: start
+
+# Run with: ansible-playbook playbook.yml --skip-tags start
+#   - Runs: install and config, but NOT start
+# Run with: ansible-playbook playbook.yml --skip-tags "install,config"
+#   - Runs: only start tasks
+
+# ============================================================================
+# 8. REAL-WORLD EXAMPLE: COMPLETE WEB APP DEPLOYMENT
+# ============================================================================
+- name: E-Commerce Application Deployment
+  hosts: webservers
+  become: yes
+  vars:
+    app_name: myshop
+    app_version: "2.1.0"
+  
+  tasks:
+    # PREPARATION PHASE
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ app_name }}"
+        state: present
+        shell: /bin/bash
+      tags:
+        - prepare
+        - users
+        - setup
+    
+    - name: Create application directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_name }}"
+        group: "{{ app_name }}"
+        mode: '0755'
+      loop:
+        - "/opt/{{ app_name }}"
+        - "/var/log/{{ app_name }}"
+        - "/etc/{{ app_name }}"
+      tags:
+        - prepare
+        - directories
+        - setup
+    
+    # INSTALLATION PHASE
+    - name: Install system packages
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - python3
+          - python3-pip
+          - redis-server
+        state: present
+        update_cache: yes
+      tags:
+        - install
+        - packages
+        - setup
+    
+    - name: Install Python dependencies
+      ansible.builtin.pip:
+        requirements: /tmp/requirements.txt
+      tags:
+        - install
+        - python
+        - dependencies
+    
+    # CONFIGURATION PHASE
+    - name: Deploy application configuration
+      ansible.builtin.template:
+        src: app_config.j2
+        dest: "/etc/{{ app_name }}/config.yaml"
+        owner: "{{ app_name }}"
+        mode: '0644'
+        backup: yes
+      tags:
+        - config
+        - configuration
+        - deploy
+      notify: restart application
+    
+    - name: Deploy Nginx configuration
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: "/etc/nginx/sites-available/{{ app_name }}"
+        mode: '0644'
+      tags:
+        - config
+        - webserver
+        - nginx
+      notify: reload nginx
+    
+    - name: Enable Nginx site
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ app_name }}"
+        dest: "/etc/nginx/sites-enabled/{{ app_name }}"
+        state: link
+      tags:
+        - config
+        - webserver
+        - nginx
+    
+    # DEPLOYMENT PHASE
+    - name: Copy application files
+      ansible.builtin.copy:
+        src: "dist/{{ app_name }}-{{ app_version }}.tar.gz"
+        dest: "/tmp/{{ app_name }}.tar.gz"
+      tags:
+        - deploy
+        - application
+        - release
+    
+    - name: Extract application
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ app_name }}.tar.gz"
+        dest: "/opt/{{ app_name }}/"
+        remote_src: yes
+        owner: "{{ app_name }}"
+        group: "{{ app_name }}"
+      tags:
+        - deploy
+        - application
+        - release
+    
+    # DATABASE PHASE
+    - name: Run database migrations
+      ansible.builtin.command:
+        cmd: python3 manage.py migrate
+        chdir: "/opt/{{ app_name }}"
+      become_user: "{{ app_name }}"
+      tags:
+        - database
+        - migrations
+        - deploy
+      when: ansible_hostname == "primary-db"
+    
+    - name: Load initial data
+      ansible.builtin.command:
+        cmd: python3 manage.py loaddata initial_data.json
+        chdir: "/opt/{{ app_name }}"
+      become_user: "{{ app_name }}"
+      tags:
+        - database
+        - data
+        - never  # Only run when explicitly called
+    
+    # SERVICE MANAGEMENT
+    - name: Install systemd service file
+      ansible.builtin.template:
+        src: myshop.service.j2
+        dest: "/etc/systemd/system/{{ app_name }}.service"
+        mode: '0644'
+      tags:
+        - service
+        - systemd
+        - deploy
+      notify: daemon-reload
+    
+    - name: Start application service
+      ansible.builtin.service:
+        name: "{{ app_name }}"
+        state: started
+        enabled: yes
+      tags:
+        - service
+        - start
+        - deploy
+    
+    - name: Start Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: yes
+      tags:
+        - service
+        - start
+        - webserver
+    
+    # VERIFICATION PHASE
+    - name: Wait for application to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:8000/health"
+        status_code: 200
+      retries: 5
+      delay: 3
+      tags:
+        - verify
+        - health-check
+        - deploy
+    
+    - name: Run application tests
+      ansible.builtin.command:
+        cmd: python3 manage.py test
+        chdir: "/opt/{{ app_name }}"
+      become_user: "{{ app_name }}"
+      tags:
+        - test
+        - verify
+        - never  # Only run when explicitly called
+    
+    # BACKUP PHASE
+    - name: Create backup of current deployment
+      ansible.builtin.archive:
+        path: "/opt/{{ app_name }}"
+        dest: "/var/backups/{{ app_name }}-{{ ansible_date_time.date }}.tar.gz"
+        format: gz
+      tags:
+        - backup
+        - maintenance
+    
+    # CLEANUP PHASE
+    - name: Remove temporary files
+      ansible.builtin.file:
+        path: "/tmp/{{ app_name }}.tar.gz"
+        state: absent
+      tags:
+        - cleanup
+        - maintenance
+    
+    - name: Clean old backups (older than 30 days)
+      ansible.builtin.find:
+        paths: /var/backups
+        patterns: "{{ app_name }}-*.tar.gz"
+        age: 30d
+      register: old_backups
+      tags:
+        - cleanup
+        - maintenance
+        - never  # Only run when explicitly called
+    
+    - name: Delete old backups
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"
+      tags:
+        - cleanup
+        - maintenance
+        - never
+  
+  handlers:
+    - name: restart application
+      ansible.builtin.service:
+        name: "{{ app_name }}"
+        state: restarted
+    
+    - name: reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+    
+    - name: daemon-reload
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+# ============================================================================
+# HOW TO RUN THE ABOVE PLAYBOOK WITH DIFFERENT TAG COMBINATIONS:
+# ============================================================================
+
+# 1. Full deployment (excluding 'never' tasks):
+#    ansible-playbook playbook.yml
+
+# 2. Only setup and installation:
+#    ansible-playbook playbook.yml --tags setup
+
+# 3. Only configuration changes:
+#    ansible-playbook playbook.yml --tags config
+
+# 4. Quick deployment (skip installation):
+#    ansible-playbook playbook.yml --skip-tags install
+
+# 5. Deploy new version:
+#    ansible-playbook playbook.yml --tags deploy
+
+# 6. Only database operations:
+#    ansible-playbook playbook.yml --tags database
+
+# 7. Service management only:
+#    ansible-playbook playbook.yml --tags service
+
+# 8. Multiple specific tags:
+#    ansible-playbook playbook.yml --tags "config,deploy,verify"
+
+# 9. Everything except database:
+#    ansible-playbook playbook.yml --skip-tags database
+
+# 10. Run cleanup tasks:
+#     ansible-playbook playbook.yml --tags cleanup
+
+# 11. Include 'never' tagged tasks:
+#     ansible-playbook playbook.yml --tags "deploy,data"
+#     ansible-playbook playbook.yml --tags never
+
+# 12. Dry run with tags:
+#     ansible-playbook playbook.yml --tags deploy --check
+
+# 13. List all available tags:
+#     ansible-playbook playbook.yml --list-tags
+
+# 14. List tasks that would run with specific tags:
+#     ansible-playbook playbook.yml --tags config --list-tasks
+
+# ============================================================================
+# 9. TAGS BEST PRACTICES
+# ============================================================================
+
+# BEST PRACTICE EXAMPLE:
+- name: Best Practice Tag Organization
+  hosts: all
+  become: yes
+  
+  tasks:
+    # Use hierarchical tags: general -> specific
+    - name: Install web server
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+      tags:
+        - setup          # Highest level
+        - install        # Medium level
+        - webserver      # Specific level
+        - nginx          # Most specific
+    
+    # Use consistent naming conventions
+    - name: Configure database
+      ansible.builtin.template:
+        src: db.conf.j2
+        dest: /etc/db.conf
+      tags:
+        - setup
+        - config
+        - database
+        - postgres
+    
+    # Tag related tasks with same tag for grouped execution
+    - name: Create log directory
+      ansible.builtin.file:
+        path: /var/log/myapp
+        state: directory
+      tags:
+        - prepare
+        - filesystem
+        - logs
+    
+    - name: Set log permissions
+      ansible.builtin.file:
+        path: /var/log/myapp
+        mode: '0755'
+      tags:
+        - prepare
+        - filesystem
+        - logs
+
+# Common tag naming conventions:
+# - setup, prepare, init
+# - install, packages, dependencies
+# - config, configure, configuration
+# - deploy, deployment, release
+# - start, stop, restart
+# - backup, restore
+# - test, verify, validate
+# - cleanup, maintenance
+# - security, hardening
+# - monitoring, logging
+
+# ============================================================================
+# SUMMARY OF TAG COMMANDS
+# ============================================================================
+
+# Run specific tags:
+# ansible-playbook playbook.yml --tags "tag1,tag2,tag3"
+
+# Skip specific tags:
+# ansible-playbook playbook.yml --skip-tags "tag1,tag2"
+
+# List all tags in playbook:
+# ansible-playbook playbook.yml --list-tags
+
+# List tasks with specific tags:
+# ansible-playbook playbook.yml --tags deploy --list-tasks
+
+# Run only tagged tasks:
+# ansible-playbook playbook.yml --tags tagged
+
+# Run only untagged tasks:
+# ansible-playbook playbook.yml --tags untagged
+
+# Run all tasks (including 'never'):
+# ansible-playbook playbook.yml --tags all
+
+# Combine with other options:
+# ansible-playbook playbook.yml --tags deploy --check -v
+# ansible-playbook playbook.yml --tags config --limit webserver1
