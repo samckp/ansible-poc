@@ -1,0 +1,17 @@
+---
+- name: fact check playbook
+  hosts: all
+  become: yes
+  become_method: sudo
+  gather_facts: yes
+
+  tasks:
+    - name: Show OS family
+      debug:
+         msg: "This system is {{ ansible_os_family }}"
+
+    - name: directory
+      file:
+        path: /home/test
+        owner: ansible
+        state: directory
