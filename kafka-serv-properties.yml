@@ -1,0 +1,12 @@
+---
+- name: prepare kafka server.properties file
+  hosts: localhost
+  become: yes
+
+  vars_files:
+      - jinja-vars.yml
+  tasks:
+    - name: create server.properties
+      template:
+        src: kafka-jinja.j2
+        dest: /home/kafka/server.properties
