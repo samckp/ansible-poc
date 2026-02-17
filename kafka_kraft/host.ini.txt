@@ -1,0 +1,7 @@
+[servers]
+172.29.139.164
+
+[servers:vars]
+ansible_user=samckp
+ansible_ssh_pass=<password>
+ansible_become_pass=<password>

@@ -1,0 +1,161 @@
+---
+- name: Generate and Copy Kafka server.properties for 3 Brokers
+  hosts: 172.29.139.164
+  become: yes
+  vars:
+    kafka_install_dir: "/home/kafka_2.13-4.1.1"
+    kafka_user: "samckp"
+    kafka_group: "samckp"
+
+    # Cluster-wide settings (same for all brokers)
+    kafka_cluster_id: "xtzWWN4bTjitpL3kfd9s5g"
+    kafka_controller_quorum_voters: "1@172.29.139.164:9093,2@172.29.139.165:9093,3@172.29.139.166:9093"
+    kafka_controller_listener_name: "CONTROLLER"
+    kafka_inter_broker_listener_name: "PLAINTEXT"
+    kafka_listener_security_protocol_map: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+
+    # Topic defaults
+    kafka_num_partitions: 3
+    kafka_default_replication_factor: 3
+    kafka_min_insync_replicas: 2
+    kafka_offsets_topic_replication_factor: 3
+    kafka_offsets_topic_num_partitions: 50
+    kafka_transaction_state_log_replication_factor: 3
+    kafka_transaction_state_log_min_isr: 2
+
+    # Log retention
+    kafka_log_retention_hours: 168
+    kafka_log_segment_bytes: 1073741824
+    kafka_log_retention_check_interval_ms: 300000
+
+    # Log flush
+    kafka_log_flush_interval_messages: 10000
+    kafka_log_flush_interval_ms: 1000
+
+    # Network
+    kafka_num_network_threads: 3
+    kafka_num_io_threads: 8
+    kafka_socket_send_buffer_bytes: 102400
+    kafka_socket_receive_buffer_bytes: 102400
+    kafka_socket_request_max_bytes: 104857600
+
+    # Group coordinator
+    kafka_group_initial_rebalance_delay_ms: 0
+    kafka_group_min_session_timeout_ms: 6000
+    kafka_group_max_session_timeout_ms: 300000
+
+    # SSL (disabled by default)
+    kafka_ssl_enabled: false
+
+    # JMX (disabled by default)
+    kafka_jmx_enabled: false
+
+    # Extra custom properties (optional)
+    # kafka_extra_properties:
+    #   auto.create.topics.enable: "false"
+    #   delete.topic.enable: "true"
+
+    # Broker-specific settings
+    kafka_brokers:
+      - name: "broker1"
+        node_id: 1
+        base_path: "/home/kafka-broker1"
+        process_roles: "broker,controller"
+        listeners:
+          - "PLAINTEXT://172.29.139.164:9092"
+          - "CONTROLLER://172.29.139.164:9093"
+        advertised_listeners:
+          - "PLAINTEXT://172.29.139.164:9092"
+
+      - name: "broker2"
+        node_id: 2
+        base_path: "/home/kafka-broker2"
+        process_roles: "broker,controller"
+        listeners:
+          - "PLAINTEXT://172.29.139.165:9092"
+          - "CONTROLLER://172.29.139.165:9093"
+        advertised_listeners:
+          - "PLAINTEXT://172.29.139.165:9092"
+
+      - name: "broker3"
+        node_id: 3
+        base_path: "/home/kafka-broker3"
+        process_roles: "broker,controller"
+        listeners:
+          - "PLAINTEXT://172.29.139.166:9092"
+          - "CONTROLLER://172.29.139.166:9093"
+        advertised_listeners:
+          - "PLAINTEXT://172.29.139.166:9092"
+
+  tasks:
+    - name: "Ensure config directory exists for {{ item.name }}"
+      file:
+        path: "{{ item.base_path }}/config"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0755'
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/config"
+
+    - name: "Generate server.properties for {{ item.name }} (node_id={{ item.node_id }})"
+      template:
+        src: "templates/server.properties.j2"
+        dest: "{{ item.base_path }}/config/server.properties"
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0644'
+        backup: yes
+      vars:
+        broker: "{{ item }}"
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} -> {{ item.base_path }}/config/server.properties"
+      register: config_result
+
+    - name: "Display config generation result for {{ item.item.name }}"
+      debug:
+        msg: "{{ item.item.name }}: {{ 'Generated (changed)' if item.changed else 'Already up to date' }} -> {{ item.item.base_path }}/config/server.properties"
+      loop: "{{ config_result.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: "Verify server.properties was created for {{ item.name }}"
+      stat:
+        path: "{{ item.base_path }}/config/server.properties"
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: config_stat
+
+    - name: "Show server.properties content for {{ item.item.name }}"
+      command: "cat {{ item.item.base_path }}/config/server.properties"
+      loop: "{{ config_stat.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      register: config_content
+      changed_when: false
+      when: item.stat.exists
+
+    - name: "Display server.properties for {{ item.item.name }}"
+      debug:
+        msg: "{{ item.stdout_lines }}"
+      loop: "{{ config_content.results }}"
+      loop_control:
+        label: "{{ item.item.item.name }}"
+      when: item.stdout_lines is defined
+
+    - name: "Final summary"
+      debug:
+        msg:
+          - "================================================"
+          - "server.properties generated for all brokers"
+          - "================================================"
+          - "Broker 1: /opt/kafka-broker1/config/server.properties"
+          - "Broker 2: /opt/kafka-broker2/config/server.properties"
+          - "Broker 3: /opt/kafka-broker3/config/server.properties"
+          - "Cluster ID: {{ kafka_cluster_id }}"
+          - "Quorum Voters: {{ kafka_controller_quorum_voters }}"
+          - "SSL Enabled: {{ kafka_ssl_enabled }}"
+          - "================================================"
