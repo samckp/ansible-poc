@@ -1,0 +1,114 @@
+---
+- name: Create Kafka Directory Structure for 3 Brokers
+  hosts: 172.29.139.164
+  become: yes
+  vars:
+    kafka_install_dir: "/home/kafka_2.13-4.1.1/"
+    kafka_base_dir: "/home"
+    kafka_user: "samckp"
+    kafka_group: "samckp"
+    
+    # Define 3 broker directories
+    kafka_brokers:
+      - name: "broker1"
+        base_path: "/home/kafka-broker1"
+      - name: "broker2"
+        base_path: "/home/kafka-broker2"
+      - name: "broker3"
+        base_path: "/home/kafka-broker3"
+    
+  tasks:
+    - name: "Ensure {{ kafka_user }}:{{ kafka_group }} exists"
+      block:
+        - name: "Create {{ kafka_group }} group"
+          group:
+            name: "{{ kafka_group }}"
+            system: yes
+            state: present
+
+        - name: "Create {{ kafka_user }} user"
+          user:
+            name: "{{ kafka_user }}"
+            group: "{{ kafka_group }}"
+            system: yes
+            create_home: no
+            shell: /bin/bash   
+
+    - name: "Create base directory structure for {{ item.name }}"
+      file:
+        path: "{{ item.base_path }}"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0755'
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}"
+
+    - name: "Create config directory for {{ item.name }}"
+      file:
+        path: "{{ item.base_path }}/config"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0755'
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/config"
+      
+    - name: "Create ssl directory for {{ item.name }}"
+      file:
+        path: "{{ item.base_path }}/ssl"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0750'
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/ssl"
+
+    - name: "Create data directory for {{ item.name }}"
+      file:
+        path: "{{ item.base_path }}/data"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0755'
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/data"
+
+    - name: "Create logs directory for {{ item.name }}"
+      file:
+        path: "{{ item.base_path }}/logs"
+        state: directory
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        mode: '0755'
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/logs" 
+
+    - name: "Create symbolic link to bin directory for {{ item.name }}"
+      file:
+        src: "{{ kafka_install_dir }}/bin"
+        dest: "{{ item.base_path }}/bin"
+        state: link
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        force: yes
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/bin -> {{ kafka_install_dir }}/bin"
+
+    - name: "Create symbolic link to lib directory for {{ item.name }}"
+      file:
+        src: "{{ kafka_install_dir }}/libs"
+        dest: "{{ item.base_path }}/libs"
+        state: link
+        owner: "{{ kafka_user }}"
+        group: "{{ kafka_group }}"
+        force: yes
+      loop: "{{ kafka_brokers }}"
+      loop_control:
+        label: "{{ item.name }} - {{ item.base_path }}/libs -> {{ kafka_install_dir }}/libs"    
