@@ -88,7 +88,7 @@
           - "PLAINTEXT://172.29.139.166:9092"
 
   tasks:
-    - name: "Ensure config directory exists for {{ item.name }}"
+    - name: "Ensure config directory exists"
       file:
         path: "{{ item.base_path }}/config"
         state: directory
@@ -99,7 +99,7 @@
       loop_control:
         label: "{{ item.name }} - {{ item.base_path }}/config"
 
-    - name: "Generate server.properties for {{ item.name }} (node_id={{ item.node_id }})"
+    - name: "Generate server.properties"
       template:
         src: "templates/server.properties.j2"
         dest: "{{ item.base_path }}/config/server.properties"
@@ -114,14 +114,14 @@
         label: "{{ item.name }} -> {{ item.base_path }}/config/server.properties"
       register: config_result
 
-    - name: "Display config generation result for {{ item.item.name }}"
+    - name: "Display config generation result"
       debug:
         msg: "{{ item.item.name }}: {{ 'Generated (changed)' if item.changed else 'Already up to date' }} -> {{ item.item.base_path }}/config/server.properties"
       loop: "{{ config_result.results }}"
       loop_control:
         label: "{{ item.item.name }}"
 
-    - name: "Verify server.properties was created for {{ item.name }}"
+    - name: "Verify server.properties was created"
       stat:
         path: "{{ item.base_path }}/config/server.properties"
       loop: "{{ kafka_brokers }}"
@@ -129,7 +129,7 @@
         label: "{{ item.name }}"
       register: config_stat
 
-    - name: "Show server.properties content for {{ item.item.name }}"
+    - name: "Show server.properties content"
       command: "cat {{ item.item.base_path }}/config/server.properties"
       loop: "{{ config_stat.results }}"
       loop_control:
@@ -138,7 +138,7 @@
       changed_when: false
       when: item.stat.exists
 
-    - name: "Display server.properties for {{ item.item.name }}"
+    - name: "Display server.properties"
       debug:
         msg: "{{ item.stdout_lines }}"
       loop: "{{ config_content.results }}"
